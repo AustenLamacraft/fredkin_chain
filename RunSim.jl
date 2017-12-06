@@ -8,19 +8,19 @@ using DSP
 """
     run_sim(p::Int, T::Int)
 
-Returns 
+Runs simulation on system size `2^p` for `T` steps. Returns power spectra at wavenumbers `2^q` for `q=1:p`.
 """
-function run_sim(p::Int, T::Int)
+function run_sim(p::Int, T::Int, init::Symbol, update::Symbol)
 
     N = 2^p  # Size of the system
 
-    path = rand(UInt64, N) # Random initial state
+    path = eval(init)(2^(p-1)) # init functions return system of size 2N
 
     ft_traces = [Complex{Float64}[] for _ in 1:p]
 
     for t in 1:T
 
-        path = open_update(path)
+        path = eval(update)(path) # Don't like this much!!
 
         if t % N == 0
             # Collect spectra only after all sites updated on average
@@ -115,6 +115,47 @@ otherwise they remain unchanged.
 function fredkin_gate(C::UInt, I1::UInt, I2::UInt)
     S = xor(I1, I2) & C
     return xor(I1, S), xor(I2, S)
+end
+
+"""
+    rand_init(n::Int)
+
+Return 2n random `UInt64`s for random initial conditions
+"""
+function rand_init(n::Int)
+    return rand(UInt64, 2n)
+end
+
+"""
+    dyck(n::Int)
+
+Returns a Dyck path of 1s and 0s of length 2n sampled uniformly.
+"""
+function dyck(n::Int)
+    # Note n is the half the length to ensure Dyck constraint
+    path = append!(ones(Int, n),zeros(Int, n+1))
+    path = shuffle(path) # Random permutation
+    nadir = indmin(cumsum(path))
+    circshift(path, -nadir)[1:2n]
+end
+
+"""
+    init_dyck_paths(n::Int)
+
+Return 2n `UInt64`s that describe 64 Dyck paths sampled uniformly.
+"""
+function dyck_init(n::Int)
+
+    configs = hcat([dyck(n) for _ in 1:64]...)
+
+    integer_configs = []
+
+    for j in 1:2n
+        bit_string = join(configs[j,:])
+        append!(integer_configs, parse(UInt64, bit_string, 2)) # Note it's an unsigned integer!
+    end
+
+    return integer_configs
 end
 
 end
