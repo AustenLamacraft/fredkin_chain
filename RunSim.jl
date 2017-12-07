@@ -6,11 +6,21 @@ using DSP
 
 
 """
-    run_sim(p::Int, T::Int)
+    run_sim(p::Int, T::Int, init::Symbol, update::Symbol, coupling::Bool)
 
-Runs simulation on system size `2^p` for `T` steps. Returns power spectra at wavenumbers `2^q` for `q=1:p`.
+Runs simulation on system size `2^p` for `T` steps. Returns power spectra at
+wavenumbers `2^q` for `q=1:p`.
+
+`init` describes the initialization method, which can be `:rand_init` for random
+configurations or `:dyck_init` for configurations drawn uniformly from the Dyck paths.
+
+`update` describes the update method, which can be `:open_update` or
+`:periodic_update` for open or periodic boundary conditions respectively.
+
+`coupling` determines whether or not updates on parallel simulations are in the
+same (randomly chosen) direction, causing simulations to couple
 """
-function run_sim(p::Int, T::Int, init::Symbol, update::Symbol)
+function run_sim(p::Int, T::Int, init::Symbol, update::Symbol, coupling::Bool)
 
     N = 2^p  # Size of the system
 
@@ -20,7 +30,7 @@ function run_sim(p::Int, T::Int, init::Symbol, update::Symbol)
 
     for t in 1:T
 
-        path = eval(update)(path) # Don't like this much!!
+        path = eval(update)(path, coupling) # Don't like this much!!
 
         if t % N == 0
             # Collect spectra only after all sites updated on average
@@ -38,11 +48,20 @@ end
 
 
 """
-    periodic_update(config)
+    periodic_update(config, coupling::Bool)
 
 Update the configuration of a periodic Fredkin chain at a randomly chosen bond.
+
+If `coupling=true` the updates are chosen (randomly) to be in the same direction.
 """
-function periodic_update(config)
+function periodic_update(config, coupling::Bool)
+
+    if coupling
+        gate = fredkin_gate_coupling
+    else
+        gate = fredkin_gate
+    end
+
 
     size = length(config)
 
@@ -51,11 +70,11 @@ function periodic_update(config)
     control_left = rand(collect(1:size))
 
     if control_left == size
-        config[1], config[2] = fredkin_gate(config[size], config[1], config[2])
+        config[1], config[2] = gate(config[size], config[1], config[2])
     elseif control_left == size - 1
-        config[size], config[1] = fredkin_gate(config[size - 1], config[size], config[1])
+        config[size], config[1] = gate(config[size - 1], config[size], config[1])
     else
-        config[control_left + 1], config[control_left + 2] = fredkin_gate(config[control_left], config[control_left + 1], config[control_left + 2])
+        config[control_left + 1], config[control_left + 2] = gate(config[control_left], config[control_left + 1], config[control_left + 2])
     end
 
     # ... and on the right
@@ -63,12 +82,12 @@ function periodic_update(config)
     control_right = rand(collect(1:size))
 
     if control_right == 1
-        config[size - 1], config[size] = fredkin_gate(config[1], config[size - 1], config[size])
+        config[size - 1], config[size] = gate(config[1], config[size - 1], config[size])
     elseif control_right == 2
-        config[size], config[1] = fredkin_gate(config[2], config[size], config[1])
+        config[size], config[1] = gate(config[2], config[size], config[1])
     else
         config[control_right - 2], config[control_right - 1] =
-        fredkin_gate(config[control_right], config[control_right - 2], config[control_right - 1])
+        gate(config[control_right], config[control_right - 2], config[control_right - 1])
     end
 
 
@@ -77,11 +96,20 @@ end
 
 
 """
-    open_update(config)
+    open_update(config, coupling::Bool)
 
 Update the configuration of a open Fredkin chain at a randomly chosen bond.
+
+If `coupling=true` the updates are chosen (randomly) to be in the same direction.
 """
-function open_update(config)
+function open_update(config, coupling)
+
+    if coupling
+        gate = fredkin_gate_coupling
+    else
+        gate = fredkin_gate
+    end
+
 
     size = length(config)
 
@@ -90,7 +118,7 @@ function open_update(config)
     control_left = rand(collect(1:size))
 
     if control_left < size-1
-        config[control_left + 1], config[control_left + 2] = fredkin_gate(config[control_left], config[control_left + 1], config[control_left + 2])
+        config[control_left + 1], config[control_left + 2] = gate(config[control_left], config[control_left + 1], config[control_left + 2])
     end
 
     # ... and on the right
@@ -99,7 +127,7 @@ function open_update(config)
 
     if control_right > 2
         config[control_right - 2], config[control_right - 1] =
-        fredkin_gate(config[control_right], config[control_right - 2], config[control_right - 1])
+        gate(config[control_right], config[control_right - 2], config[control_right - 1])
     end
 
 
@@ -109,11 +137,24 @@ end
 """
     fredkin_gate(C::UInt, I1::UInt, I2::UInt)
 
-Computes the two outputs of a Fredkin gate with inputs `C` (control), `I1` and `I2`. If `C = 1`, `I1` and `I2` are swapped,
+Computes the two outputs of a Fredkin gate with inputs `C` (control),
+`I1` and `I2`. If `C = 1`, `I1` and `I2` are swapped if different,
 otherwise they remain unchanged.
 """
 function fredkin_gate(C::UInt, I1::UInt, I2::UInt)
     S = xor(I1, I2) & C
+    return xor(I1, S), xor(I2, S)
+end
+
+"""
+    fredkin_gate_coupling(C::UInt, I1::UInt, I2::UInt)
+
+Computes the two outputs of a Fredkin gate with inputs `C` (control), `I1` and `I2`.
+If `C = 1`, `I1` and `I2` are swapped if different in a randomly chosen direction.
+Otherwise they remain unchanged.
+"""
+function fredkin_gate_coupling(C::UInt, I1::UInt, I2::UInt)
+    S = rand([I1 & ~I2, ~I1 & I2]) & C
     return xor(I1, S), xor(I2, S)
 end
 
