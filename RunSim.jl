@@ -74,7 +74,8 @@ function periodic_update(config, coupling::Bool)
     elseif control_left == size - 1
         config[size], config[1] = gate(config[size - 1], config[size], config[1])
     else
-        config[control_left + 1], config[control_left + 2] = gate(config[control_left], config[control_left + 1], config[control_left + 2])
+        config[control_left + 1], config[control_left + 2] =
+        gate(config[control_left], config[control_left + 1], config[control_left + 2])
     end
 
     # ... and on the right
@@ -118,7 +119,8 @@ function open_update(config, coupling)
     control_left = rand(collect(1:size))
 
     if control_left < size-1
-        config[control_left + 1], config[control_left + 2] = gate(config[control_left], config[control_left + 1], config[control_left + 2])
+        config[control_left + 1], config[control_left + 2] =
+        gate(config[control_left], config[control_left + 1], config[control_left + 2])
     end
 
     # ... and on the right
@@ -171,6 +173,8 @@ end
     dyck(n::Int)
 
 Returns a Dyck path of 1s and 0s of length 2n sampled uniformly.
+
+From http://bit.ly/2FPeeOd
 """
 function dyck(n::Int)
     # Note n is the half the length to ensure Dyck constraint
